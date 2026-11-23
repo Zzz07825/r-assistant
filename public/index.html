@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R语言 AI 助教</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; background: #f4f4f4; }
+        #chat-box { height: 400px; overflow-y: auto; background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; }
+        .message { margin-bottom: 15px; padding: 10px; border-radius: 6px; }
+        .user { background: #e3f2fd; text-align: right; }
+        .ai { background: #f1f8e9; text-align: left; }
+        .input-area { display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>📚 R语言 AI 助教</h2>
+    <div id="chat-box"></div>
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="输入你的R语言问题..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">发送</button>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        
+        // 助教人设
+        const systemPrompt = `你是一个专业的R语言课程助教。请遵循以下准则：
+1. 概念题：采用苏格拉底式提问，先反问1-2个问题引导我思考，如果我回答错误或说“直接告诉我”，你再给出完整解释，最后让我用自己的话复述一遍。
+2. 代码题：不要直接给答案，先输出【总体评价】和【问题清单】（用🔴🟡🟢标注严重程度），再给【改写示例】和【为什么】。
+3. 练习题：附带【提示】和【参考答案】，只有我说“看提示”或“看答案”才展示，并随着我做对的题数增加难度。
+4. 错误记录：我报的错、概念混淆、代码bug，你要在末尾附加“已记入错题本：XXX”。`;
+
+        let history = [{ role: "system", content: systemPrompt }];
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            userInput.value = '';
+            history.push({ role: "user", content: text });
+
+            try {
+                // 注意这里：前端只请求我们自己的后端，不再包含任何 API Key
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: history })
+                });
+                const data = await response.json();
+                
+                if(data.choices && data.choices[0]) {
+                    const aiReply = data.choices[0].message.content;
+                    addMessage(aiReply, 'ai');
+                    history.push({ role: "assistant", content: aiReply });
+                } else {
+                    addMessage("出错了：" + (data.error || "请检查后端配置。"), 'ai');
+                }
+            } catch (error) {
+                addMessage("网络错误！", 'ai');
+            }
+        }
+
+        function addMessage(text, role) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerText = text; // 使用 innerText 防止 XSS 攻击
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
